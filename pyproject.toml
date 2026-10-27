@@ -17,6 +17,7 @@ dependencies = [
     "nbconvert>=7.16",
     "ipykernel>=6.29",
     "pytest>=8.0",
+    "truststore>=0.10.4",
 ]
 
 [tool.uv]
