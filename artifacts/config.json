@@ -1,0 +1,58 @@
+{
+  "dataset": {
+    "workspace": "auebmsc-ba-machine-learning",
+    "project": "forest-fire-and-smoke-detection-using-uav-imaging_3",
+    "version": 9
+  },
+  "class_names": [
+    "fire",
+    "smoke"
+  ],
+  "positive_class": "image shows fire or smoke",
+  "costs": {
+    "fp": 1000,
+    "tp": 1000,
+    "tn": 0,
+    "fn": 10000,
+    "fn_scenarios": {
+      "0.6x (0.05 x 4 ha x 3k/ha)": 600,
+      "5x": 5000,
+      "10x (central)": 10000,
+      "50x": 50000,
+      "190x": 190000
+    }
+  },
+  "base_rate": {
+    "value": 0.0008897394574268064,
+    "cases_per_day": 48960,
+    "cameras": 34,
+    "fires_per_year": 265,
+    "cameras_per_fire": 2,
+    "minutes_visible": 30
+  },
+  "review": {
+    "seconds": 30,
+    "cost_per_hour": 25,
+    "cost_per_case": 0.20833333333333334,
+    "reviewers_available": 2
+  },
+  "operating_point": {
+    "model_alone_threshold": 0.59,
+    "t_low": 0.06,
+    "t_high": 0.59
+  },
+  "training": {
+    "base_model": "yolo11s.pt",
+    "epochs": 100,
+    "patience": 20,
+    "imgsz": 640,
+    "batch": 8,
+    "device": "cpu",
+    "seed": 0,
+    "smoke_test": false
+  },
+  "detection_test": {
+    "map50": 0.3678495510634896,
+    "map50_95": 0.16790589332744815
+  }
+}

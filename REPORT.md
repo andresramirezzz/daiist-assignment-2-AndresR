@@ -1,69 +1,109 @@
 # Assignment 2 Report
 
-*Delete this italic guidance as you fill in each section. You'll be asked to
-defend any of this without your code in front of you. Write only what you
-can actually explain.*
-
-- **Name**:
-- **Student ID**:
-- **Email**:
-- **Group**: [BBADBA 5A | BBADBA 5B | PPLEDBA 5A | BDBA 3A]
+- Name: Andrés Ramírez López
+- Student ID: 19077
+- Email: aramirez.ieu2022@student.ie.edu
+- Group: BBADBA 5A
 
 ## Business problem, and the cost of being wrong
 
-*The decision this model supports, who or what acts on it, and what happens
-when it's wrong in each direction. Be concrete about the asymmetry: which
-mistake is worse, roughly by how much, and why. Everything downstream (your
-threshold, how much you send to a person, which metric you care about) has to trace
-back to this section.*
+Every summer there are forest fires in Spain, and in the last years some of them were close to Madrid, my city. The Comunidad de Madrid watches the forest from 34 towers with people inside, but they are only there from 11:00 to 21:00, and at night there are only 6 mobile patrols ([Comunidad de Madrid, 34 torres](https://www.comunidad.madrid/node/69737)). In 2024 the whole network had only 4 cameras, and in 2026 Madrid 112 opened a market consultation to find new technology for fire detection ([consulta preliminar al mercado 2026](https://www.comunidad.madrid/docs/assets/2026/01/15/bases_de_la_cpm_v03.docx)). So this is a real decision right now.
+
+My idea is to put one camera in each of the 34 towers, taking one image per minute, 24 hours a day. An object detection model looks at each image and decides if there is a fire. If yes, the alert goes to Madrid 112 (ASEM112), which coordinates the INFOMA plan and sends the closest resources, like Bomberos and Agentes Forestales ([Comunidad de Madrid, 2026](https://www.comunidad.madrid/node/117166)). One case is one image from one camera, and the positive class is "the image shows fire or smoke".
+
+A false positive (FP) is when the model says there is a fire and there is none. Madrid 112 sends a ground team for 1 or 2 hours for nothing. A brigade costs about 268 € per hour, and planes or helicopters about 4,000 to 6,000 € per hour ([Asest](https://asest.es/story/el-negocio-de-los-incendios-forestales/)), but I assume that an alert nobody has confirmed only gets a response by land, so a FP costs about 1,000 €.
+
+A false negative (FN) is when there is a fire and the model does not see it. The fire is not lost forever, because someone can still call 112, so the real cost is the extra damage because we find it later. If the first team arrives early, most fires stay as a "conato" (under 1 ha), but if it arrives late, the fire can escape. A study with 26,907 fires in California found that response time is one of the factors that predict if the first attack controls the fire ([Cardil et al., 2025](https://www.nwfirescience.org/sites/default/files/publications/wf24160.pdf)).
+
+So I cannot say that a missed fire costs the price of a whole burned forest. Most fires would stay small even if we find them a bit later, and only some of them escape because of the delay. That is why I calculate the FN cost as an expected value: the chance that the delay makes the fire escape, multiplied by what an escaped fire costs. What an escaped fire costs is the hectares it burns multiplied by the cost of putting out each hectare. So the formula is:
+
+FN cost = Δp (extra probability that the fire escapes) × hectares of an escaped fire × € per hectare
+
+Each part answers one question: how much more likely is an escape when we detect late, how big is an escaped fire, and how much does each hectare cost to put out. This way I can look for each number separately, and if one of them is wrong, it is easy to see how the result changes. With my central values, 0.10 × 10 ha × 10,000 €/ha, a FN costs about 10,000 €.
+
+For the cost per hectare, I found very different numbers, so I had to choose which ones to trust. I use 10,000 €/ha, the estimate of the Agencia Forestal de Navarra, because it is a public body that manages fires itself and has no reason to make the number bigger or smaller. Asemfo, the association of forestry companies, says 19,000 €/ha ([Euronews](https://es.euronews.com/2026/07/27/la-factura-de-la-ola-de-incendios-en-espana-hasta-3275-millones-de-euros-solo-en-labores-d)). But Asemfo is a sector lobby, a group that defends the interests of the companies in its sector. These companies are paid for forest and fire work, so a higher cost helps them ask for more public money. For this reason I do not use 19,000 € as my central value, only as the maximum. As the minimum I use about 3,000 €/ha, which is an average extinction cost for big fires given in the press ([Merca2](https://www.merca2.es/2026/07/27/coste-economico-incendios-forestales-152000-hectareas-2424595/)). I only count the cost of putting out the fire, not the damage to nature, houses or tourism, because those numbers change a lot between sources and are much harder to defend. The 10 ha comes from Madrid data: in 2024 there were 265 fires, 204 of them were conatos, and 1,707 ha burned ([consulta preliminar al mercado 2026](https://www.comunidad.madrid/docs/assets/2026/01/15/bases_de_la_cpm_v03.docx)). Most of this area came from three big fires, Loeches (727 ha), Tres Cantos (528 ha) and El Molar y Pedrezuela (206 ha) ([Comunidad de Madrid, balance 2024](https://www.comunidad.madrid/node/70254)). With my own rough calculation, each fire that was not a conato burned about 4 ha without these three and about 28 ha with them, so 10 ha is in the middle. The Δp = 0.10 is my own assumption, because no study gives this number for a camera system. A study in PLOS ONE found that one hour less of reporting delay only reduces the suppression cost by about 0.25% ([PLOS ONE, 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11578465/)), so 0.05 is also defensible. Since about 19 to 23% of fires in Madrid are not conatos ([Comunidad de Madrid, 2026](https://www.comunidad.madrid/node/117166)), 0.10 is already a big increase.
+
+A true positive (TP) also needs a team, so it also costs 1,000 €, and a true negative (TN) costs 0. Since I only count extinction, all these costs are low on purpose. In the central case a FN costs 10 times more than a FP, but since I am not sure about this ratio, I repeat the analysis with ratios of 0.6, 5, 10, 50 and 190. In my previous assignment I used a cost of 1 for a false positive and 3 for a false negative, but they were only relative units that I chose myself, and one of my limitations was that I did not have real costs. This time I tried to fix that by building each cost in euros from public data. Because of this asymmetry, accuracy is not my main metric. What I look at is the expected cost per 1,000 images, the share of fires missed and the number of operators needed.
 
 ## Dataset
 
-*Workspace / project / version on Roboflow Universe, and the link. What one
-image represents, what the classes are, and why this dataset actually serves
-the problem above rather than merely resembling it.*
+I used this dataset from Roboflow Universe, downloaded with the API as it is (not forked):
+
+- Workspace: `auebmsc-ba-machine-learning`
+- Project: `forest-fire-and-smoke-detection-using-uav-imaging_3`
+- Version: 9
+- Link: https://universe.roboflow.com/auebmsc-ba-machine-learning/forest-fire-and-smoke-detection-using-uav-imaging_3/dataset/9
+
+It is an object detection dataset, so every fire and every smoke in an image has a box drawn around it. There are two classes, "fire" and "smoke". The images are landscapes, mostly forest and mountains, taken from a drone (UAV), and about half of them have no fire or smoke at all. These "background" images are what lets me measure false positives.
+
+My first try was "fire-and-smoke-detector" (gfo-fc1de, version 14), but most of its test images were urban fires, and about 466 of the 639 test images came from the same videos as the training images. This is data leakage: the model would be tested on almost the same images it learned from, so the results would be too good. After looking at around 25 datasets, I chose this one because it is the only one that looks like forest surveillance, it has very little leakage (only 7 of the 446 test images share a source with train), and it has many forest images with no fire.
 
 ## What the dataset's composition implies
 
-*Instances per class, train/val/test sizes, typical object size relative to the
-image. Then the interpretation: which per-class numbers will be too thin to
-trust, whether the test split resembles the images you'd really see, and what
-you therefore can't conclude from your results.*
+The dataset has three splits. The model learns from train, valid is used for decisions while building the system (the best epoch and the thresholds), and test is kept apart until the end to measure the model on images it never saw. Train has 6,250 images (3,196 background), with 7,502 fire boxes and 2,515 smoke boxes. Valid has 897 images (455 background), with 1,123 fire boxes and 354 smoke boxes. Test has 446 images (226 background), with 505 fire boxes and 163 smoke boxes, so at the image level it is almost 50/50: 220 positive and 226 negative images.
+
+Smoke has three times fewer boxes than fire, so its results are less reliable. Train is also bigger than it really is, because version 9 includes augmentation (each image is also saved rotated 90 degrees), while valid and test have no augmentation, which is correct. The most important thing is object size. The median fire box covers only about 2.7% of the image, and 35% of the fire boxes cover less than 1%, while the median smoke box covers about 22%. Small fires are the early fires we want to catch and also the hardest to detect, but smoke is big and usually the first thing you see from far away, which helps my problem.
+
+There are some things I cannot conclude from this data. The images are from a drone, not from a tower, so the angle and the distance are different from production (domain shift). Many negatives are easy (beach, snow, clear forest), while in real cameras false alarms come from clouds, fog, dust and sun, which the dataset almost does not have. Test is 50% positive, but in production only about 1 in 1,100 images would be, so I take the true and false positive rates from test and reweight them to the production base rate. Finally, there are only 226 negatives in test, so the false positive rate is uncertain. This is my most important limitation.
+
+I also found that 534 label files had some objects drawn as polygons instead of boxes, and Ultralytics (the YOLO library) silently drops the 63 images that mix both. So I converted every polygon into its bounding box, which is what Ultralytics already does for files with only polygons, and no image was lost.
 
 ## Finetuning and baselines
 
-*Which model and task (detection or classification) and why. A results table on
-the same test split: your finetuned model, the pretrained COCO model zero-shot,
-and a trivial baseline. What changed, and whether the gap is as large as you
-expected.*
+I used object detection with `yolo11s`. YOLO finds objects in an image and draws a box around each one with a confidence score from 0 to 1. I started from the weights pretrained on COCO, a big dataset with 80 everyday classes but no fire, and finetuned them, which means continuing the training with my images so the model learns fire and smoke. I chose detection because the box shows the operator where the fire is, and `yolo11s` instead of `yolo11n` because it is a bit bigger and should help with small fires. I trained it on my laptop (NVIDIA RTX 3050, 4 GB) for 100 epochs (full passes over train), with image size 640, batch 8 (the most that fits in 4 GB), patience 20 (stop if valid does not improve for 20 epochs) and seed 0, which fixes the random process so the result can be repeated, like random_state=42 in my previous assignment. It took about 6.5 hours, and the best epoch on valid was 74.
+
+My decision is per image, not per box. So an image is positive if it has at least one fire or smoke box, and its score is the highest confidence among its boxes. The image is "fire" if its score is equal or higher than the threshold. At the image level I use recall, TP / (TP + FN), which is the share of fires found; false positive rate (FPR), FP / (FP + TN), the share of negatives that give an alarm; precision, TP / (TP + FP); and accuracy, (TP + TN) / all images.
+
+I compared the model with two baselines on the same test split: the COCO model used zero-shot, and a trivial baseline that always predicts "no fire". With the default threshold of 0.25, the finetuned model finds 185 of the 220 fire images (recall 0.841) and gives a false alarm on only 4 of the 226 negatives (FPR 0.018), with precision 0.979 and accuracy 0.913. The COCO model has no fire or smoke class, so it never raises an alert and gets exactly the same result as predicting nothing: recall 0 and accuracy 0.507. In the fire images it mostly detects "person", "car" and "traffic light". The 50.7% accuracy of these baselines only comes from half of the test images being negative, which shows why accuracy is misleading here. It is the same thing I saw in my previous assignment, where a model that always said "no" already got about 88.5% accuracy because only 11.5% of the clients said "yes". The gap is as big as I expected, because the baselines cannot detect fire at all.
 
 ## Per-class evaluation and failure modes
 
-*Per-class AP50, or per-class precision/recall and the confusion matrix.
-Which class carries the headline number, which one is dragging, and what the
-model actually confuses with what. Show where it breaks, not just that it
-works.*
+For the boxes, the standard metric is AP50, the average precision when a predicted box counts as correct if it overlaps at least 50% with the real box. mAP50-95 is the same but averaged over stricter overlaps, from 50% to 95%. On test, fire gets precision 0.475, recall 0.358, AP50 0.359 and AP50-95 0.163, and smoke gets precision 0.494, recall 0.387, AP50 0.376 and AP50-95 0.173. Together, mAP50 is 0.368 and mAP50-95 is 0.168. Both classes are similar, but fire is the one dragging even though it has three times more instances, and I think the reason is that fire boxes are so small.
+
+The confusion matrix of the boxes on test, at confidence 0.25, shows where the model fails. Of the 505 real fire boxes, it found 158 as fire, 1 as smoke and missed 346. Of the 163 real smoke boxes, it found 57 as smoke, 2 as fire and missed 104. It also predicted 171 boxes where nothing was labelled (131 fire and 40 smoke). So the model almost never confuses fire with smoke, and the real problem is that it misses many boxes. But only 4 negative images raised an alarm, so most of the 171 extra boxes are inside images that do have a fire, for example one fire split into several boxes or flames without a label. This is why the image level is much better than the box level: when there is a fire, the model usually finds at least one part of it. The failure that matters most is a small fire with no smoke, because then the model can miss the whole image.
 
 ## Cost matrix and operating point
 
-*Your euro cost for each kind of error and where each figure came from. The
-base rate you assumed. The cost-against-threshold sweep, and the operating
-point you chose. State the assumption that would most change your answer if it
-were wrong.*
+The costs are 1,000 € for a FP, 10,000 € for a FN, 1,000 € for a TP and 0 € for a TN, as explained in the first section.
+
+To calculate the base rate, 34 cameras × 1,440 images per day give 48,960 images per day, or 17.9 million per year. In 2024 there were 265 fires in the Comunidad de Madrid, and I assume each fire is seen by 2 cameras for 30 minutes until it is confirmed or put out. Fire cameras can see smoke at about 15 km ([Ecoticias](https://www.ecoticias.com/naturaleza/57524_la-comunidad-de-madrid-instala-en-la-zona-suroeste-un-sistema-de-camaras-de-vigilancia-que-detectan-incendios-forestales)), so two near towers can see the same fire. That gives 265 × 2 × 30 = 15,900 fire images per year, so the base rate is π ≈ 0.089%, or 1 in 1,124 images. Because test is 50/50, I calculate the expected cost per image with the rates from the model and this base rate:
+
+Expected cost = π × (TPR × C_TP + (1 − TPR) × C_FN) + (1 − π) × (FPR × C_FP + (1 − FPR) × C_TN)
+
+I tried every threshold from 0 to 1 in steps of 0.01 and calculated this cost per 1,000 images. I chose the threshold on valid and only then reported the result on test, so the test numbers are not adjusted to the test images. This was the next step I proposed in my previous assignment, where I only used the default threshold of 0.5, and here I could apply it.
+
+If the model decides alone, the cheapest threshold is 0.59, and with it the model only finds 23% of the fires on valid. The reason is the base rate: with 48,960 images a day, a FPR of only 1% means about 490 false alerts per day, almost 490,000 € per day. For example, at 0.25 the model finds 88% of the fires on valid but costs 32,628 € per 1,000 images, while 0.59 costs 7,049 €. So when the model is alone, missing fires is cheaper than sending teams for nothing all day, which is a bad result for a fire system and the reason for the human review below. The cost curve is in `artifacts/cost_curve.png` and in the dashboard, with the chosen threshold marked. The best threshold stays at 0.59 for FN/FP ratios of 5, 10 and 50, so it is quite stable, and it only changes at the extremes (0.15 at 190, and 0.91 at 0.6).
+
+The assumption that would most change my answer is the FPR on real tower images, because the whole cost depends on how many negatives are sent as alerts or to review, and my estimate comes from only 226 easy negatives. With 0 false alarms out of 226, the 95% upper bound of the real FPR is still about 1.3% (Clopper-Pearson, close to the "rule of three", 3/n). If clouds or fog make the FPR higher, the cost and the operators needed go up.
 
 ## What a person still has to check
 
-*Your two thresholds, and what share of cases they send to a person. How many
-that is per day, how long one takes to check, and how many people that needs.
-Is that realistic? Then your design priced against the three alternatives:
-doing nothing, having a person check everything, and letting the model decide
-on its own.*
+Since the model alone misses most fires, I use three outcomes with two thresholds. If the score is under t_low = 0.06, the image passes. If it is 0.59 (t_high) or more, the alert is sent directly. In between, an operator in Madrid 112 looks at the camera for about 30 seconds and decides. I assume the operator is always right, so a reviewed fire costs the team plus the review and a reviewed negative only the review. A review costs about 0.21 € (30 seconds at 25 € per hour), and there are 2 operators available at any moment, 24 hours a day. The operators needed are the reviews per day × 30 seconds / 3,600 / 24 hours.
+
+I tried every pair of thresholds on valid and chose the cheapest pair that fits in 2 operators. The cheapest pair already fits, so the staffing limit did not change the decision. I did not want a decision only to save money, because the goal is to anticipate fires, but here both things go together, because a missed fire costs 10 times more than a false alarm, and on valid this pair did not miss any fire.
+
+On test, of the 220 fire images, 1 passes, 176 go to review and 43 become a direct alert. Of the 226 negatives, 214 pass, 12 go to review and none becomes an alert. In production this sends 5.4% of the images to review, about 2,632 per day. At 30 seconds each, that is 22 hours of work per day, so 0.91 operators on shift at any moment, which fits in the 2 available. I think this is realistic, because Madrid 112 already works 24 hours a day, and the plan only stops fitting if more than about 12% of the negatives go to review (5,760 reviews per day).
+
+Compared with the alternatives, doing nothing costs 8,897 € per 1,000 images (435,616 € per day) and misses every fire. A person checking every image costs 1,098 € per 1,000 images (53,762 € per day) and misses no fires, but needs 17 operators at any moment, which is not realistic. The model alone at 0.59 costs 7,332 € per 1,000 images (358,988 € per day) and misses 80% of the fires. My design, the model with human review, costs 937 € per 1,000 images (45,892 € per day), needs 0.91 operators and misses 0.5% of the fires (1 of 220). It is the cheapest option, 89% less than doing nothing and 87% less than the model alone.
+
+So the model works as a filter for the operator, not as a replacement. It removes almost all the normal images and sends the doubtful ones to a person, and that is how most fires (176 of 220) are found. Most of the cost that is left (about 43,500 € of the 45,892 € per day) is sending teams to real fires, which has to be paid anyway.
 
 ## Limitations & next steps
 
-*Real limitations you found, and concretely how you'd address each one with
-more time or data. Not generic hedging.*
+The first limitation is that the FPR is not well measured. No negative gave an alert on test, but with only 226 negatives the real FPR could be up to about 1.3%, which means up to 644 false alerts per day in production. So I can say the FPR is low, but not that it is zero, and the dashboard shows this upper bound next to the expected value. As a next step, I would run the system in shadow mode for some weeks with the real cameras: the model works and records what it would do, but sends no alerts. This way the real FPR can be measured and the thresholds chosen again.
+
+The second limitation is domain shift. The images are from drones, not from towers, and there are almost no clouds, fog or dust, which cause most false alarms in real cameras. The images collected in shadow mode could be labelled and used to finetune the model again.
+
+The third limitation is that box detection is weak for small fires (AP50 of 0.36 for fire and 0.38 for smoke). A bigger image size (for example 1280) or a bigger model (`yolo11m`) could help, but I could not try this with a 4 GB GPU.
+
+The fourth limitation is that the costs and the base rate are my assumptions. Δp is not a number from data, and the base rate depends on the 2 cameras and the 30 minutes per fire. Also, I count the cost per image, but in reality one fire is one mobilisation even if 60 images show it. So the euros per day are higher than in reality, but the comparison between strategies is still valid because it affects all of them in a similar way. The base rate is also a yearly average, and in summer it is higher (around 0.2%), so the thresholds could be different in the high risk period of INFOMA, from 15 June to 30 September ([Comunidad de Madrid, 34 torres](https://www.comunidad.madrid/node/69737)). Finally, I assume the operator is never wrong, which is not true, especially at night or with many images. With more time, I would ask Madrid 112 for real costs and data to check all of this.
 
 ## Generative AI use disclosure
 
-*Per the syllabus AI Policy: what you used and how, or "no AI content used."*
+I used Claude in this project. It helped me in several ways, and it did more than correct grammar.
+
+It helped me set up the Roboflow environment and fix the connection problems, search and compare datasets on Roboflow Universe, and find the research and official data that I used to decide the costs and the base rate (the INFOMA plan, the towers, the California and PLOS ONE studies, the costs per hectare). 
+
+The decisions were mine: the problem framing, the dataset (UAV v9), the cost of each error and how I calculated it, one image per minute and 24 hours of surveillance, the review time, the cost of an operator and the 2 operators, choosing the cheapest pair of thresholds that fits in the operators, and choosing the thresholds on validation instead of test.
+
+The AI also wrote and debugged the code for the training pipeline (`train.py`) and the dashboard (`app.py`), checked that everything ran with `check.py`, and explained the results to me.

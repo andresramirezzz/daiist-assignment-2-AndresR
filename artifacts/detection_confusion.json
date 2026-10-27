@@ -1,0 +1,26 @@
+{
+  "labels": [
+    "fire",
+    "smoke",
+    "background"
+  ],
+  "rows": "predicted",
+  "columns": "true",
+  "matrix": [
+    [
+      158,
+      2,
+      131
+    ],
+    [
+      1,
+      57,
+      40
+    ],
+    [
+      346,
+      104,
+      0
+    ]
+  ]
+}
